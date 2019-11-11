@@ -1,5 +1,5 @@
 clear;
-data = load("data.mat");
+data = load("norm2D.mat");
 data = data.data;
 mean = mean(data')
 covariance = cov(data')
