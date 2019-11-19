@@ -6,7 +6,7 @@ global HIST_SIZE;
 HIST_SIZE = 100;
 
 %constant velocity, no acceleration if set to a value > 0
-V_CONST = 100;
+V_CONST = 0;
 
 %the time betweeen to measurements we get
 T = 0.02;
@@ -35,7 +35,10 @@ NIS_Hist = zeros(1,HIST_SIZE);      % NIS - history
 R = [1, 0;
      0, 1];
 
-Q = 0.4 * eye(4);
+Q = 15000 * [0.25 * T^4, 0, 0.5 * T^3, 0;
+     0, 0.25 * T^4, 0, 0.5 * T^3;
+     0.5 * T^3, 0, T^2, 0;
+     0, 0.5 * T^3, 0, T^2];
 
 F = [1, 0, T, 0;
      0, 1, 0, T;
@@ -46,6 +49,10 @@ F = [1, 0, T, 0;
       0, 1, 0, 0];
 
 x_true = [];
+iteration = 1;
+k_pos = zeros(500, 1);
+k_v = zeros(500, 1);
+P_hist = zeros(500, 4, 4);
 while (1)   
   % simulation loop  
   x_true = getStateRect(x_true,T, V_CONST);      
@@ -62,13 +69,13 @@ while (1)
   % filter initialization (once per simulation)  
   if (isempty(x_est))   
     x_est = [0 0 0 0]';
-    P_est = 100 * eye(4);
+    P_est = 10 * eye(4);
   end;
   
   %-----Prediction------
   x_pred = F * x_est;
   P_pred = F * P_est * F' + Q;
-  z_pred = H * x_est;
+  z_pred = H * x_pred;
   S = H * P_pred * H' + R;
   
   %-----Innovation-----
@@ -77,7 +84,28 @@ while (1)
   P_est = P_pred - K * S * K';
   
   
-  
+  k_pos(iteration) = K(1, 1);
+  k_v(iteration) = K(3, 1);
+  P_hist(iteration, :, :) = P_est;
+  iteration = iteration + 1;
+  if iteration >= 500
+     figure;
+     plot(k_pos);
+     hold on;
+     plot(k_v);
+     legend("pos", "v");
+     figure;
+     plot(P_hist(:, 1, 1));
+     hold on;
+     plot(P_hist(:, 2, 2), '--');
+     plot(P_hist(:, 3, 3), ':');
+     plot(P_hist(:, 4, 4), '-.');
+     plot(P_hist(:, 3, 1));
+     plot(P_hist(:, 2, 4));
+     legend("sigma y", "sigma z", "sigma v_y", "sigma v_z", "cov y", "cov z");
+     
+     gedafzr
+  end
   %================================================================================%
  
   % x_est = ??;
@@ -86,12 +114,17 @@ while (1)
   X_est_Hist = addHistory(X_est_Hist, x_est);
 
   P95_NEES = 9.49;
-  P95_NIS = 0;
+  P95_NIS = 9.49;
   
   %-------------NEES---------
   x_error = x_true(1:4) - x_est;
   eps = x_error' / P_est * x_error;
   NEES_Hist = addHistory(NEES_Hist, eps);
+  
+  %------------NIS-----------
+  z_error = z - z_pred;
+  eps_nis = z_error' / S * z_error;
+  NIS_Hist = addHistory(NIS_Hist, eps_nis);
   
   %=======================================================================%
   %     Visualisation
